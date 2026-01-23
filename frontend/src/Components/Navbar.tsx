@@ -1,32 +1,36 @@
-type NavbarProps = {
-  activePage: "overview" | "optimization" | "analytics";
-  onNavigate: (page: "overview" | "optimization" | "analytics") => void;
-};
+import { NavLink } from "react-router-dom";
 
-const Navbar = ({ activePage, onNavigate }: NavbarProps) => {
+const Navbar = () => {
   return (
     <nav className="navbar">
-      <button
-        type="button"
-        onClick={() => onNavigate("overview")}
-        aria-current={activePage === "overview" ? "page" : undefined}
-      >
-        Overview
-      </button>
-      <button
-        type="button"
-        onClick={() => onNavigate("optimization")}
-        aria-current={activePage === "optimization" ? "page" : undefined}
-      >
-        Optimization
-      </button>
-      <button
-        type="button"
-        onClick={() => onNavigate("analytics")}
-        aria-current={activePage === "analytics" ? "page" : undefined}
-      >
-        Analytics
-      </button>
+      <div className="navbar__title">WNBA Fantasy Lineup Optimizer</div>
+      <div className="navbar__links">
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) =>
+            `navbar__link${isActive ? " navbar__link--active" : ""}`
+          }
+        >
+          Overview
+        </NavLink>
+        <NavLink
+          to="/optimization"
+          className={({ isActive }) =>
+            `navbar__link${isActive ? " navbar__link--active" : ""}`
+          }
+        >
+          Optimization
+        </NavLink>
+        <NavLink
+          to="/analytics"
+          className={({ isActive }) =>
+            `navbar__link${isActive ? " navbar__link--active" : ""}`
+          }
+        >
+          Analytics
+        </NavLink>
+      </div>
     </nav>
   );
 };
