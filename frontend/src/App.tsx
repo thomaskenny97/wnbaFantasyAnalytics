@@ -1,5 +1,9 @@
 import { useState } from "react";
 import axios from "axios";
+import Navbar from "./Components/Navbar";
+import Analytics from "./Pages/Analytics";
+import Optimization from "./Pages/Optimization";
+import Overview from "./Pages/Overview";
 import "./App.css";
 
 type EspnPublicPlayer = {
@@ -10,9 +14,20 @@ type EspnPublicPlayer = {
 };
 
 function App() {
+  const [activePage, setActivePage] = useState<
+    "overview" | "optimization" | "analytics"
+  >("overview");
   const [espnRoster, setEspnRoster] = useState<EspnPublicPlayer[]>([]);
   const [isEspnLoading, setIsEspnLoading] = useState(false);
   const [espnError, setEspnError] = useState<string | null>(null);
+  const pageContent =
+    activePage === "optimization" ? (
+      <Optimization />
+    ) : activePage === "analytics" ? (
+      <Analytics />
+    ) : (
+      <Overview />
+    );
 
   const handleEspnTest = async () => {
     setIsEspnLoading(true);
@@ -34,7 +49,8 @@ function App() {
   return (
     <main className="app">
       <section>
-        <h1>My WNBA Team</h1>
+        <Navbar activePage={activePage} onNavigate={setActivePage} />
+        {pageContent}
         <button type="button" onClick={handleEspnTest} disabled={isEspnLoading}>
           {isEspnLoading ? "Testing..." : "Test ESPN API"}
         </button>
