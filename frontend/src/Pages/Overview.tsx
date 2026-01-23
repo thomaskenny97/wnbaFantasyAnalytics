@@ -1,23 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
-
-type EspnPublicPlayer = {
-  id: number;
-  fullName?: string;
-  firstName?: string;
-  lastName?: string;
-};
+import RosterTable from "../Components/RosterTable";
+import type { Player } from "../Components/RosterTable";
 
 const Overview = () => {
-  const [espnRoster, setEspnRoster] = useState<EspnPublicPlayer[]>([]);
+  const [espnRoster, setEspnRoster] = useState<Player[]>([]);
   const [isEspnLoading, setIsEspnLoading] = useState(false);
   const [espnError, setEspnError] = useState<string | null>(null);
 
-  const handleEspnTest = async () => {
+  const loadRoster = async () => {
     setIsEspnLoading(true);
     setEspnError(null);
     try {
-      const rosterResponse = await axios.get<EspnPublicPlayer[]>(
+      const rosterResponse = await axios.get<Player[]>(
         "http://localhost:3001/api/espn/public/my-roster"
       );
       setEspnRoster(rosterResponse.data);
@@ -30,23 +25,17 @@ const Overview = () => {
     }
   };
 
+  useEffect(() => {
+    loadRoster();
+  }, []);
+
   return (
     <section>
-      <h1>Overview</h1>
-      <p>Roster overview and quick status will live here.</p>
-      <button type="button" onClick={handleEspnTest} disabled={isEspnLoading}>
-        {isEspnLoading ? "Testing..." : "Test ESPN API"}
-      </button>
+      <h2>Fantasy Team Roster</h2>
+      {isEspnLoading && <p>Loading roster...</p>}
       {espnError && <p>{espnError}</p>}
       {!isEspnLoading && !espnError && espnRoster.length > 0 && (
-        <ul>
-          {espnRoster.map((player) => (
-            <li key={player.id}>
-              {player.fullName ??
-                [player.firstName, player.lastName].filter(Boolean).join(" ")}
-            </li>
-          ))}
-        </ul>
+        <RosterTable players={espnRoster} />
       )}
     </section>
   );
