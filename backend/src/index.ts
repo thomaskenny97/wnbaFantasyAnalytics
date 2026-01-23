@@ -1,5 +1,15 @@
 import express from "express";
 import cors from "cors";
+import { writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
+import { getAllPlayers } from "./repositories/playersRepository.js";
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
@@ -8,6 +18,249 @@ app.use(express.json());
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
+});
+
+app.get("/players", (_req, res) => {
+  const players = getAllPlayers();
+  res.json(players);
+});
+
+app.get("/api/espn/test", async (_req, res) => {
+  // Build the ESPN league endpoint for the WNBA fantasy API.
+  const leagueId = 133498200;
+  const seasonId = 2025;
+  const gameKey = "wnba";
+  const url = `https://fantasy.espn.com/apis/v3/games/${gameKey}/seasons/${seasonId}/segments/0/leagues/${leagueId}?view=mTeam&view=mRoster&view=mSettings`;
+
+  // Read auth cookies from environment variables and send as a Cookie header.
+  const espnS2 = process.env.ESPN_S2;
+  const swid = process.env.SWID;
+  // Diagnostic: confirm env vars are present without logging secrets.
+  console.log("ESPN env vars loaded", {
+    hasEspnS2: Boolean(espnS2),
+    hasSwid: Boolean(swid),
+  });
+  if (!espnS2 || !swid) {
+    res.status(500).json({ error: "Missing ESPN auth cookies in environment." });
+    return;
+  }
+
+  try {
+    const requestHeaders: Record<string, string> = {
+      // Cookie must be formatted exactly as required by ESPN auth.
+      Cookie: `espn_s2=${espnS2}; SWID=${swid}`,
+      // Browser-like headers to reduce chance of HTML login responses.
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept: "application/json, text/plain, */*",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Accept-Encoding": "gzip, deflate, br",
+      Referer: "https://fantasy.espn.com/",
+      Origin: "https://fantasy.espn.com",
+      // NOTE: Browsers also send sec-fetch-* and sec-ch-ua headers;
+      // Node fetch does not include these by default.
+    };
+
+    // Diagnostic: log headers with cookies redacted to compare vs browser.
+    const redactedHeaders = {
+      ...requestHeaders,
+      Cookie: "espn_s2=[REDACTED]; SWID=[REDACTED]",
+    };
+    console.log("ESPN request headers", redactedHeaders);
+
+    const response = await fetch(url, {
+      headers: requestHeaders,
+      // Allow redirects and log if ESPN redirects to an HTML login page.
+      redirect: "follow",
+    });
+
+    const contentType = response.headers.get("content-type") ?? "";
+    const rawBody = await response.text();
+    if (response.status >= 300 && response.status < 400) {
+      console.warn("ESPN redirect detected", {
+        status: response.status,
+        responseUrl: response.url,
+      });
+    }
+
+    if (!response.ok) {
+      console.error("ESPN request failed", {
+        status: response.status,
+        statusText: response.statusText,
+        responseUrl: response.url,
+        contentType,
+        bodyPreview: rawBody.slice(0, 300),
+      });
+      const outputPath = path.resolve(__dirname, "..", "data", "espn-league-raw.json");
+      writeFileSync(
+        outputPath,
+        JSON.stringify({ contentType, body: rawBody }, null, 2),
+        "utf-8"
+      );
+      res.status(500).json({ error: "ESPN request failed. Check server logs." });
+      return;
+    }
+
+    if (!contentType.includes("application/json")) {
+      console.error("ESPN response was not JSON", {
+        status: response.status,
+        responseUrl: response.url,
+        contentType,
+        bodyPreview: rawBody.slice(0, 300),
+      });
+      const outputPath = path.resolve(__dirname, "..", "data", "espn-league-raw.json");
+      // Diagnostic: save raw HTML for inspection when JSON is not returned.
+      writeFileSync(
+        outputPath,
+        JSON.stringify({ contentType, body: rawBody }, null, 2),
+        "utf-8"
+      );
+      res.status(500).json({ error: "ESPN response was not JSON. Check server logs." });
+      return;
+    }
+
+    let data: unknown;
+    try {
+      data = JSON.parse(rawBody);
+    } catch (parseError) {
+      console.error("Failed to parse ESPN JSON", {
+        error: parseError,
+        bodyPreview: rawBody.slice(0, 300),
+      });
+      res.status(500).json({ error: "Failed to parse ESPN JSON. Check server logs." });
+      return;
+    }
+
+    console.log("ESPN JSON response received", {
+      status: response.status,
+      responseUrl: response.url,
+    });
+
+    // Save the full raw response to disk for inspection.
+    const outputPath = path.resolve(__dirname, "..", "data", "espn-league-raw.json");
+    writeFileSync(outputPath, JSON.stringify(data, null, 2), "utf-8");
+
+    // Return only a minimal subset to confirm connectivity and auth.
+    const responseData = data as {
+      settings?: { name?: string };
+      name?: string;
+      teams?: unknown[];
+      seasonId?: number;
+    };
+    const leagueName = responseData?.settings?.name ?? responseData?.name ?? "Unknown League";
+    const teamCount = Array.isArray(responseData?.teams) ? responseData.teams.length : 0;
+    res.json({ leagueName, seasonId: responseData?.seasonId ?? seasonId, teamCount });
+  } catch (error) {
+    console.error("ESPN request error", error);
+    res.status(500).json({ error: "Failed to reach ESPN Fantasy API." });
+  }
+});
+
+type EspnPublicLeagueResponse = {
+  teams?: Array<{
+    id: number;
+    name?: string;
+    roster?: {
+      entries?: Array<{
+        playerId?: number;
+        status?: string;
+        playerPoolEntry?: {
+          player?: {
+            id?: number;
+            fullName?: string;
+            firstName?: string;
+            lastName?: string;
+          };
+        };
+      }>;
+    };
+  }>;
+};
+
+app.get("/api/espn/public/players", async (_req, res) => {
+  const url =
+    "https://lm-api-reads.fantasy.espn.com/apis/v3/games/wfba/seasons/2025/players?scoringPeriodId=0&view=players_wl";
+
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      console.error("Public players request failed", {
+        status: response.status,
+        statusText: response.statusText,
+        responseUrl: response.url,
+      });
+      res.status(500).json({ error: "Failed to fetch public players." });
+      return;
+    }
+
+    const data = (await response.json()) as unknown;
+    res.json(data);
+  } catch (error) {
+    console.error("Public players request error", error);
+    res.status(500).json({ error: "Failed to reach public players endpoint." });
+  }
+});
+
+app.get("/api/espn/public/league", async (_req, res) => {
+  const url =
+    "https://lm-api-reads.fantasy.espn.com/apis/v3/games/wfba/seasons/2025/segments/0/leagues/133498200?view=mTeam&view=mRoster&view=mSettings";
+
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      console.error("Public league request failed", {
+        status: response.status,
+        statusText: response.statusText,
+        responseUrl: response.url,
+      });
+      res.status(500).json({ error: "Failed to fetch public league." });
+      return;
+    }
+
+    const raw = (await response.json()) as EspnPublicLeagueResponse;
+    const outputPath = path.resolve(__dirname, "..", "data", "espn-league-public.json");
+    writeFileSync(outputPath, JSON.stringify(raw, null, 2), "utf-8");
+
+    res.json(raw.teams ?? []);
+  } catch (error) {
+    console.error("Public league request error", error);
+    res.status(500).json({ error: "Failed to reach public league endpoint." });
+  }
+});
+
+app.get("/api/espn/public/my-roster", async (_req, res) => {
+  const url =
+    "https://lm-api-reads.fantasy.espn.com/apis/v3/games/wfba/seasons/2025/segments/0/leagues/133498200?view=mTeam&view=mRoster&view=mSettings";
+
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      console.error("Public roster request failed", {
+        status: response.status,
+        statusText: response.statusText,
+        responseUrl: response.url,
+      });
+      res.status(500).json({ error: "Failed to fetch public roster." });
+      return;
+    }
+
+    const data = (await response.json()) as EspnPublicLeagueResponse;
+    const team = data.teams?.find((entry) => entry.id === 10);
+    const rosterEntries = team?.roster?.entries ?? [];
+    const rosterPlayers = rosterEntries
+      .map((entry) => entry.playerPoolEntry?.player)
+      .filter((player): player is NonNullable<typeof player> => Boolean(player));
+    res.json(rosterPlayers);
+  } catch (error) {
+    console.error("Public roster request error", error);
+    res.status(500).json({ error: "Failed to reach public roster endpoint." });
+  }
 });
 
 const PORT = process.env.PORT || 3001;

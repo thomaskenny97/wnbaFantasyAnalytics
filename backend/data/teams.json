@@ -1,0 +1,16 @@
+{
+  "teams": [
+    {
+      "id": "team_las_aces",
+      "name": "Las Vegas Aces",
+      "abbreviation": "LVA",
+      "conference": "West"
+    },
+    {
+      "id": "team_ny_liberty",
+      "name": "New York Liberty",
+      "abbreviation": "NYL",
+      "conference": "East"
+    }
+  ]
+}

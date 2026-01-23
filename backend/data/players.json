@@ -1,0 +1,28 @@
+{
+  "players": [
+    {
+      "id": "player_aja_wilson",
+      "firstName": "A'ja",
+      "lastName": "Wilson",
+      "position": "F/C",
+      "teamId": "team_las_aces",
+      "jerseyNumber": 22
+    },
+    {
+      "id": "player_breanna_stewart",
+      "firstName": "Breanna",
+      "lastName": "Stewart",
+      "position": "F",
+      "teamId": "team_ny_liberty",
+      "jerseyNumber": 30
+    },
+    {
+      "id": "player_sabrina_ionescu",
+      "firstName": "Sabrina",
+      "lastName": "Ionescu",
+      "position": "G",
+      "teamId": "team_ny_liberty",
+      "jerseyNumber": 20
+    }
+  ]
+}

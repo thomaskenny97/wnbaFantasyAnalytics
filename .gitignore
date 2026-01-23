@@ -11,3 +11,5 @@ build/
 # OS / editor
 .DS_Store
 .vscode/
+
+backend/data/espn-league-raw.json
