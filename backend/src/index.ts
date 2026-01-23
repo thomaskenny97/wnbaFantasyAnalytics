@@ -157,6 +157,7 @@ app.get("/api/espn/test", async (_req, res) => {
 });
 
 type EspnPublicLeagueResponse = {
+  scoringPeriodId?: number;
   teams?: Array<{
     id: number;
     name?: string;
@@ -170,10 +171,44 @@ type EspnPublicLeagueResponse = {
             fullName?: string;
             firstName?: string;
             lastName?: string;
+            defaultPositionId?: number;
+            eligibleSlots?: number[];
+            injuryStatus?: string;
+            ownership?: {
+              percentOwned?: number;
+            };
+            stats?: Array<{
+              seasonId?: number;
+              scoringPeriodId?: number;
+              statSourceId?: number;
+              appliedTotal?: number;
+              appliedAverage?: number;
+            }>;
           };
         };
       }>;
     };
+  }>;
+};
+
+type EspnPlayerStatsEntry = {
+  player?: {
+    id?: number;
+    fullName?: string;
+    firstName?: string;
+    lastName?: string;
+    defaultPositionId?: number;
+    eligibleSlots?: number[];
+    injuryStatus?: string;
+    ownership?: {
+      percentOwned?: number;
+    };
+  };
+  stats?: Array<{
+    scoringPeriodId?: number;
+    statSourceId?: number;
+    appliedTotal?: number;
+    appliedAverage?: number;
   }>;
 };
 
@@ -260,6 +295,122 @@ app.get("/api/espn/public/my-roster", async (_req, res) => {
   } catch (error) {
     console.error("Public roster request error", error);
     res.status(500).json({ error: "Failed to reach public roster endpoint." });
+  }
+});
+
+app.get("/api/espn/public/roster-rolling", async (_req, res) => {
+  const leagueUrl =
+    "https://lm-api-reads.fantasy.espn.com/apis/v3/games/wfba/seasons/2025/segments/0/leagues/133498200?view=mTeam&view=mRoster&view=mSettings";
+
+  try {
+    const leagueResponse = await fetch(leagueUrl, {
+      headers: { Accept: "application/json" },
+    });
+    if (!leagueResponse.ok) {
+      console.error("Public rolling request failed (league)", {
+        status: leagueResponse.status,
+        statusText: leagueResponse.statusText,
+        responseUrl: leagueResponse.url,
+      });
+      res.status(500).json({ error: "Failed to fetch league data." });
+      return;
+    }
+
+    const leagueData = (await leagueResponse.json()) as EspnPublicLeagueResponse;
+    const currentPeriodId = leagueData.scoringPeriodId ?? 0;
+    const team = leagueData.teams?.find((entry) => entry.id === 10);
+    const rosterEntries = team?.roster?.entries ?? [];
+    const rosterPlayers = rosterEntries
+      .map((entry) => entry.playerPoolEntry?.player)
+      .filter((player): player is NonNullable<typeof player> => Boolean(player));
+    const rosterIds = new Set(rosterPlayers.map((player) => player.id).filter(Boolean));
+
+    const fetchPeriodTotals = async (periodId: number) => {
+      const url =
+        `https://lm-api-reads.fantasy.espn.com/apis/v3/games/wfba/seasons/2025/players` +
+        `?scoringPeriodId=${periodId}&view=players_wl`;
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok) {
+        console.error("Public rolling request failed (players)", {
+          periodId,
+          status: response.status,
+          statusText: response.statusText,
+          responseUrl: response.url,
+        });
+        return new Map<number, number>();
+      }
+
+      const data = (await response.json()) as EspnPlayerStatsEntry[];
+      const totals = new Map<number, number>();
+      for (const entry of data) {
+        const playerId = entry.player?.id;
+        if (!playerId || !rosterIds.has(playerId)) {
+          continue;
+        }
+        // ESPN includes multiple stat sources; statSourceId=0 is actuals.
+        const stat = entry.stats?.find(
+          (s) => s.scoringPeriodId === periodId && s.statSourceId === 0
+        );
+        if (stat?.appliedTotal !== undefined) {
+          totals.set(playerId, stat.appliedTotal);
+        }
+      }
+      return totals;
+    };
+
+    const last7 = Array.from({ length: 7 }, (_, i) => currentPeriodId - i).filter(
+      (id) => id > 0
+    );
+    const last30 = Array.from({ length: 30 }, (_, i) => currentPeriodId - i).filter(
+      (id) => id > 0
+    );
+
+    const last7Totals: Array<Map<number, number>> = [];
+    for (const periodId of last7) {
+      last7Totals.push(await fetchPeriodTotals(periodId));
+    }
+
+    const last30Totals: Array<Map<number, number>> = [];
+    for (const periodId of last30) {
+      last30Totals.push(await fetchPeriodTotals(periodId));
+    }
+
+    const responsePayload = rosterPlayers.map((player) => {
+      const playerId = player.id ?? 0;
+      const totals7 = last7Totals
+        .map((map) => map.get(playerId))
+        .filter((value): value is number => value !== undefined);
+      const totals30 = last30Totals
+        .map((map) => map.get(playerId))
+        .filter((value): value is number => value !== undefined);
+
+      const avg7 =
+        totals7.length > 0
+          ? totals7.reduce((sum, value) => sum + value, 0) / totals7.length
+          : null;
+      const avg30 =
+        totals30.length > 0
+          ? totals30.reduce((sum, value) => sum + value, 0) / totals30.length
+          : null;
+
+      return {
+        ...player,
+        rolling: {
+          avg7,
+          avg30,
+          periods7: totals7.length,
+          periods30: totals30.length,
+        },
+      };
+    });
+
+    res.json({
+      scoringPeriodId: currentPeriodId,
+      players: responsePayload,
+    });
+  } catch (error) {
+    console.error("Public rolling request error", error);
+    res.status(500).json({ error: "Failed to reach rolling stats endpoint." });
   }
 });
 

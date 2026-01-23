@@ -12,10 +12,10 @@ const Overview = () => {
     setIsEspnLoading(true);
     setEspnError(null);
     try {
-      const rosterResponse = await axios.get<Player[]>(
-        "http://localhost:3001/api/espn/public/my-roster"
-      );
-      setEspnRoster(rosterResponse.data);
+      const rosterResponse = await axios.get<{
+        players: Player[];
+      }>("http://localhost:3001/api/espn/public/roster-rolling");
+      setEspnRoster(rosterResponse.data.players);
     } catch (error) {
       console.error("Failed to load ESPN roster", error);
       setEspnError("Failed to load ESPN roster.");
