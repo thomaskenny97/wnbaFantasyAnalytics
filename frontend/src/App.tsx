@@ -3,6 +3,7 @@ import Navbar from "./Components/Navbar";
 import Analytics from "./Pages/Analytics";
 import Optimization from "./Pages/Optimization";
 import Overview from "./Pages/Overview";
+import AvailablePlayers from "./Pages/AvailablePlayers";
 import "./App.css";
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
           <Route path="/" element={<Overview />} />
           <Route path="/optimization" element={<Optimization />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/available-players" element={<AvailablePlayers />} />
         </Routes>
       </section>
     </main>

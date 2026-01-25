@@ -6,30 +6,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
-
-export type Player = {
-  id: number;
-  fullName: string;
-  defaultPositionId?: number;
-  eligibleSlots?: number[];
-  injuryStatus?: string;
-  ownership?: {
-    percentOwned?: number;
-  };
-  stats?: Array<{
-    seasonId?: number;
-    scoringPeriodId?: number;
-    statSourceId?: number;
-    statSplitTypeId?: number;
-    appliedAverage?: number;
-  }>;
-  rolling?: {
-    avg7?: number | null;
-    avg30?: number | null;
-    periods7?: number;
-    periods30?: number;
-  };
-};
+import type { Player } from "./RosterTable";
 
 const POSITION_LABELS: Record<number, string> = {
   1: "PG",
@@ -65,14 +42,15 @@ const getLatestAppliedAverage = (player: Player): number | null => {
   return fallback[0]?.appliedAverage ?? null;
 };
 
-type RosterTableProps = {
+type AvailablePlayersTableProps = {
   players: Player[];
 };
 
-const RosterTable = ({ players }: RosterTableProps) => {
+const AvailablePlayersTable = ({ players }: AvailablePlayersTableProps) => {
   const [sorting, setSorting] = useState<SortingState>([
     { id: "avgFantasyPoints", desc: true },
   ]);
+
   const columns = useMemo<ColumnDef<Player>[]>(
     () => [
       {
@@ -99,34 +77,6 @@ const RosterTable = ({ players }: RosterTableProps) => {
         header: "Avg Fantasy Points",
         id: "avgFantasyPoints",
         accessorFn: (row) => getLatestAppliedAverage(row),
-        sortingFn: (rowA, rowB, columnId) => {
-          const a = rowA.getValue<number | null>(columnId) ?? -Infinity;
-          const b = rowB.getValue<number | null>(columnId) ?? -Infinity;
-          return a - b;
-        },
-        cell: ({ getValue }) => {
-          const value = getValue<number | null>();
-          return value !== null ? value.toFixed(1) : "N/A";
-        },
-      },
-      {
-        header: "7 Day Avg",
-        id: "avg7",
-        accessorFn: (row) => row.rolling?.avg7 ?? null,
-        sortingFn: (rowA, rowB, columnId) => {
-          const a = rowA.getValue<number | null>(columnId) ?? -Infinity;
-          const b = rowB.getValue<number | null>(columnId) ?? -Infinity;
-          return a - b;
-        },
-        cell: ({ getValue }) => {
-          const value = getValue<number | null>();
-          return value !== null ? value.toFixed(1) : "N/A";
-        },
-      },
-      {
-        header: "30 Day Avg",
-        id: "avg30",
-        accessorFn: (row) => row.rolling?.avg30 ?? null,
         sortingFn: (rowA, rowB, columnId) => {
           const a = rowA.getValue<number | null>(columnId) ?? -Infinity;
           const b = rowB.getValue<number | null>(columnId) ?? -Infinity;
@@ -167,45 +117,47 @@ const RosterTable = ({ players }: RosterTableProps) => {
   });
 
   return (
-    <table>
-      <thead>
-        {table.getHeaderGroups().map((headerGroup) => (
-          <tr key={headerGroup.id}>
-            {headerGroup.headers.map((header) => (
-              <th key={header.id}>
-                {header.isPlaceholder ? null : header.column.getCanSort() ? (
-                  <button
-                    type="button"
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(
-                      header.column.columnDef.header,
-                      header.getContext()
-                    )}
-                    {header.column.getIsSorted() === "desc" ? " ▼" : ""}
-                    {header.column.getIsSorted() === "asc" ? " ▲" : ""}
-                  </button>
-                ) : (
-                  flexRender(header.column.columnDef.header, header.getContext())
-                )}
-              </th>
-            ))}
-          </tr>
-        ))}
-      </thead>
-      <tbody>
-        {table.getRowModel().rows.map((row) => (
-          <tr key={row.id}>
-            {row.getVisibleCells().map((cell) => (
-              <td key={cell.id}>
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="table-scroll">
+      <table>
+        <thead>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <tr key={headerGroup.id}>
+              {headerGroup.headers.map((header) => (
+                <th key={header.id}>
+                  {header.isPlaceholder ? null : header.column.getCanSort() ? (
+                    <button
+                      type="button"
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      {flexRender(
+                        header.column.columnDef.header,
+                        header.getContext()
+                      )}
+                      {header.column.getIsSorted() === "desc" ? " ▼" : ""}
+                      {header.column.getIsSorted() === "asc" ? " ▲" : ""}
+                    </button>
+                  ) : (
+                    flexRender(header.column.columnDef.header, header.getContext())
+                  )}
+                </th>
+              ))}
+            </tr>
+          ))}
+        </thead>
+        <tbody>
+          {table.getRowModel().rows.map((row) => (
+            <tr key={row.id}>
+              {row.getVisibleCells().map((cell) => (
+                <td key={cell.id}>
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 };
 
-export default RosterTable;
+export default AvailablePlayersTable;

@@ -212,6 +212,28 @@ type EspnPlayerStatsEntry = {
   }>;
 };
 
+type EspnPlayerWithStats = {
+  id?: number;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
+  defaultPositionId?: number;
+  eligibleSlots?: number[];
+  injuryStatus?: string;
+  ownership?: {
+    percentOwned?: number;
+  };
+  stats?: EspnPlayerStatsEntry["stats"];
+};
+
+type EspnKonaPlayerInfoResponse = {
+  players?: Array<{
+    id?: number;
+    onTeamId?: number;
+    player?: EspnPlayerWithStats;
+  }>;
+};
+
 app.get("/api/espn/public/players", async (_req, res) => {
   const url =
     "https://lm-api-reads.fantasy.espn.com/apis/v3/games/wfba/seasons/2025/players?scoringPeriodId=0&view=players_wl";
@@ -411,6 +433,107 @@ app.get("/api/espn/public/roster-rolling", async (_req, res) => {
   } catch (error) {
     console.error("Public rolling request error", error);
     res.status(500).json({ error: "Failed to reach rolling stats endpoint." });
+  }
+});
+
+app.get("/api/espn/public/available-players", async (_req, res) => {
+  const baseUrl =
+    "https://lm-api-reads.fantasy.espn.com/apis/v3/games/wfba/seasons/2025/segments/0/leagues/133498200";
+  const baseParams = new URLSearchParams({
+    scoringPeriodId: "120",
+    view: "kona_player_info",
+    platformVersion: "f23636631f3d5609b41daa409faa6f587135a0fb",
+  });
+  const baseFilter = {
+    players: {
+      filterStatus: {
+        value: ["FREEAGENT", "WAIVERS"],
+      },
+      filterSlotIds: {
+        value: [0, 1, 2, 3, 4, 5],
+      },
+      filterRanksForScoringPeriodIds: {
+        value: [120],
+      },
+      limit: 50,
+      offset: 0,
+      sortPercOwned: {
+        sortAsc: false,
+        sortPriority: 1,
+      },
+      sortDraftRanks: {
+        sortPriority: 100,
+        sortAsc: true,
+        value: "STANDARD",
+      },
+      filterRanksForRankTypes: {
+        value: ["STANDARD"],
+      },
+      filterStatsForTopScoringPeriodIds: {
+        value: 5,
+        additionalValue: ["002025", "102025", "002024", "012025", "022025", "032025", "042025"],
+      },
+    },
+  };
+
+  try {
+    const playersUrl = `${baseUrl}?${baseParams.toString()}`;
+    const requestPlayers = async (offset: number) => {
+      const filterPayload = {
+        ...baseFilter,
+        players: {
+          ...baseFilter.players,
+          offset,
+        },
+      };
+
+      const playersResponse = await fetch(playersUrl, {
+        headers: {
+          Accept: "application/json",
+          "x-fantasy-filter": JSON.stringify(filterPayload),
+        },
+      });
+
+      if (!playersResponse.ok) {
+        console.error("Public available request failed (players)", {
+          status: playersResponse.status,
+          statusText: playersResponse.statusText,
+          responseUrl: playersResponse.url,
+        });
+        res.status(500).json({ error: "Failed to fetch players data." });
+        return null;
+      }
+
+      const playersData = (await playersResponse.json()) as EspnKonaPlayerInfoResponse;
+      return playersData.players ?? [];
+    };
+
+    const allPlayers: NonNullable<EspnKonaPlayerInfoResponse["players"]> = [];
+    const pageLimit = baseFilter.players.limit;
+    for (let offset = 0; offset < 10000; offset += pageLimit) {
+      const pagePlayers = await requestPlayers(offset);
+      if (!pagePlayers) {
+        return;
+      }
+      if (pagePlayers.length === 0) {
+        break;
+      }
+      allPlayers.push(...pagePlayers);
+      if (pagePlayers.length < pageLimit) {
+        break;
+      }
+    }
+
+    const outputPath = path.resolve(__dirname, "..", "data", "espn-available-raw.json");
+    const availablePlayers: EspnPlayerWithStats[] = allPlayers
+      .map((entry) => entry.player)
+      .filter((player): player is EspnPlayerWithStats => Boolean(player));
+    writeFileSync(outputPath, JSON.stringify({ players: availablePlayers }, null, 2), "utf-8");
+
+    res.json({ players: availablePlayers });
+  } catch (error) {
+    console.error("Public available request error", error);
+    res.status(500).json({ error: "Failed to reach available players endpoint." });
   }
 });
 

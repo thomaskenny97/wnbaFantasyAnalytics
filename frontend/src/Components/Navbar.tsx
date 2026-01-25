@@ -30,6 +30,14 @@ const Navbar = () => {
         >
           Analytics
         </NavLink>
+        <NavLink
+          to="/available-players"
+          className={({ isActive }) =>
+            `navbar__link${isActive ? " navbar__link--active" : ""}`
+          }
+        >
+          Available Players
+        </NavLink>
       </div>
     </nav>
   );
