@@ -11,6 +11,13 @@
   margin: 0;
   padding: 0;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+}
+
+.app > section {
+  flex: 1;
+  min-height: 0;
 }
 
 .navbar {
@@ -87,6 +94,105 @@ th button {
 .table-scroll {
   max-height: 60vh;
   overflow: auto;
+}
+
+.optimization-page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 3rem;
+  text-align: left;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.optimization-header {
+  margin-bottom: 2rem;
+}
+
+.optimization-title {
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.optimization-subtitle {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.optimization-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.optimization-card {
+  background: #1b1b1b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.optimization-card h2 {
+  font-size: 1.1rem;
+  margin: 0 0 0.5rem;
+}
+
+.optimization-help {
+  margin: 0 0 1.25rem;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.optimization-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.optimization-field label {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.optimization-actions {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.optimization-button {
+  padding: 0.75rem 1.6rem;
+  border-radius: 999px;
+  border: none;
+  background: #646cff;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  box-shadow: 0 8px 18px rgba(100, 108, 255, 0.35);
+}
+
+.optimization-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.optimization-button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(100, 108, 255, 0.45);
+}
+
+.optimization-error {
+  margin: 0.5rem 0 0;
+  color: #ff7b7b;
+}
+
+.optimization-page .p-calendar,
+.optimization-page .p-dropdown,
+.optimization-page .p-multiselect {
+  width: 100%;
 }
 
 .logo {
