@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { Calendar } from "primereact/calendar";
+import { Dropdown } from "primereact/dropdown";
+import { MultiSelect } from "primereact/multiselect";
 
 type Player = {
   id: number;
@@ -10,7 +13,6 @@ type OptimizationSettings = {
   startDate: string;
   endDate: string;
   scoringMethod: "SEASON_AVERAGE" | "ROLLING_30";
-  lockedPlayerIds: number[];
   droppablePlayerIds: number[];
 };
 
@@ -21,37 +23,21 @@ const mockRoster: Player[] = [
   { id: 4, name: "Kelsey Plum", positions: ["G"] },
 ];
 
-const toIsoDate = (value: string) =>
-  value ? new Date(`${value}T00:00:00`).toISOString() : "";
-
-const toDateInputValue = (isoValue: string) => {
-  if (!isoValue) {
-    return "";
-  }
-  const date = new Date(isoValue);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-  return date.toISOString().slice(0, 10);
-};
-
 const Optimization = () => {
   const [settings, setSettings] = useState<OptimizationSettings>({
     startDate: "",
     endDate: "",
     scoringMethod: "SEASON_AVERAGE",
-    lockedPlayerIds: [],
     droppablePlayerIds: [],
   });
 
-  const lockedSet = useMemo(
-    () => new Set(settings.lockedPlayerIds),
-    [settings.lockedPlayerIds]
-  );
-
   const droppableOptions = useMemo(
-    () => mockRoster.filter((player) => !lockedSet.has(player.id)),
-    [lockedSet]
+    () =>
+      mockRoster.map((player) => ({
+        label: `${player.name} (${player.positions.join(", ")})`,
+        value: player.id,
+      })),
+    []
   );
 
   const dateError = useMemo(() => {
@@ -64,27 +50,17 @@ const Optimization = () => {
     return "";
   }, [settings.startDate, settings.endDate]);
 
-  const handleDateChange = (key: "startDate" | "endDate") => (value: string) => {
+  const handleDateChange = (key: "startDate" | "endDate") => (value: Date | null) => {
     setSettings((prev) => ({
       ...prev,
-      [key]: toIsoDate(value),
-    }));
-  };
-
-  const handleLockedChange = (selectedIds: number[]) => {
-    setSettings((prev) => ({
-      ...prev,
-      lockedPlayerIds: selectedIds,
-      droppablePlayerIds: prev.droppablePlayerIds.filter(
-        (id) => !selectedIds.includes(id)
-      ),
+      [key]: value ? value.toISOString() : "",
     }));
   };
 
   const handleDroppableChange = (selectedIds: number[]) => {
     setSettings((prev) => ({
       ...prev,
-      droppablePlayerIds: selectedIds.filter((id) => !prev.lockedPlayerIds.includes(id)),
+      droppablePlayerIds: selectedIds,
     }));
   };
 
@@ -98,21 +74,23 @@ const Optimization = () => {
         <h2>Date Range</h2>
         <p>Select the time window the optimizer should target.</p>
         <label htmlFor="start-date">Start date</label>
-        <input
+        <Calendar
           id="start-date"
-          type="date"
-          value={toDateInputValue(settings.startDate)}
-          onChange={(event) => handleDateChange("startDate")(event.target.value)}
+          value={settings.startDate ? new Date(settings.startDate) : null}
+          onChange={(event) => handleDateChange("startDate")(event.value ?? null)}
+          dateFormat="yy-mm-dd"
+          showIcon
           required
         />
         <label htmlFor="end-date">End date</label>
-        <input
+        <Calendar
           id="end-date"
-          type="date"
-          value={toDateInputValue(settings.endDate)}
-          onChange={(event) => handleDateChange("endDate")(event.target.value)}
+          value={settings.endDate ? new Date(settings.endDate) : null}
+          onChange={(event) => handleDateChange("endDate")(event.value ?? null)}
+          dateFormat="yy-mm-dd"
+          showIcon
           required
-          min={toDateInputValue(settings.startDate)}
+          minDate={settings.startDate ? new Date(settings.startDate) : undefined}
         />
         {dateError && <p>{dateError}</p>}
       </div>
@@ -121,61 +99,41 @@ const Optimization = () => {
         <h2>Scoring Settings</h2>
         <p>Choose the scoring method used to rank player performance.</p>
         <label htmlFor="scoring-method">Scoring methodology</label>
-        <select
+        <Dropdown
           id="scoring-method"
           value={settings.scoringMethod}
           onChange={(event) =>
             setSettings((prev) => ({
               ...prev,
-              scoringMethod: event.target.value as OptimizationSettings["scoringMethod"],
+              scoringMethod: event.value as OptimizationSettings["scoringMethod"],
             }))
           }
-        >
-          <option value="SEASON_AVERAGE">Full season average points per game</option>
-          <option value="ROLLING_30">Rolling 30-day average points per game</option>
-        </select>
+          options={[
+            {
+              label: "Full season average points per game",
+              value: "SEASON_AVERAGE",
+            },
+            {
+              label: "Rolling 30-day average points per game",
+              value: "ROLLING_30",
+            },
+          ]}
+          placeholder="Select scoring method"
+        />
       </div>
 
       <div>
         <h2>Roster Constraints</h2>
-        <p>Lock core players and define who can be dropped.</p>
-        <label htmlFor="locked-players">Locked players (cannot be dropped)</label>
-        <select
-          id="locked-players"
-          multiple
-          value={settings.lockedPlayerIds.map(String)}
-          onChange={(event) => {
-            const selected = Array.from(event.target.selectedOptions).map((option) =>
-              Number(option.value)
-            );
-            handleLockedChange(selected);
-          }}
-        >
-          {mockRoster.map((player) => (
-            <option key={player.id} value={player.id}>
-              {player.name} ({player.positions.join(", ")})
-            </option>
-          ))}
-        </select>
-
+        <p>Select the players the optimizer is allowed to drop.</p>
         <label htmlFor="droppable-players">Players eligible to drop</label>
-        <select
+        <MultiSelect
           id="droppable-players"
-          multiple
-          value={settings.droppablePlayerIds.map(String)}
-          onChange={(event) => {
-            const selected = Array.from(event.target.selectedOptions).map((option) =>
-              Number(option.value)
-            );
-            handleDroppableChange(selected);
-          }}
-        >
-          {droppableOptions.map((player) => (
-            <option key={player.id} value={player.id}>
-              {player.name} ({player.positions.join(", ")})
-            </option>
-          ))}
-        </select>
+          value={settings.droppablePlayerIds}
+          options={droppableOptions}
+          onChange={(event) => handleDroppableChange(event.value ?? [])}
+          placeholder="Select droppable players"
+          display="chip"
+        />
       </div>
 
       <button
