@@ -195,6 +195,52 @@ th button {
   width: 100%;
 }
 
+.optimization-results {
+  margin-top: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.optimization-summary {
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+}
+
+.optimization-summary h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+}
+
+.optimization-results-list {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.optimization-day-card {
+  background: #1b1b1b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+}
+
+.optimization-day-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.optimization-day-header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
 .logo {
   height: 6em;
   padding: 1.5em;

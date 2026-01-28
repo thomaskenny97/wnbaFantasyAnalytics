@@ -3,6 +3,10 @@ import { Calendar } from "primereact/calendar";
 import { Dropdown } from "primereact/dropdown";
 import { MultiSelect } from "primereact/multiselect";
 import { dummyFantasyData } from "../data/dummyFantasyData";
+import {
+  optimizeWeeklyLineup,
+  type OptimizationResult,
+} from "../optimizer/weeklyOptimizer";
 
 type OptimizationSettings = {
   startDate: string;
@@ -18,6 +22,8 @@ const Optimization = () => {
     scoringMethod: "SEASON_AVERAGE",
     droppablePlayerIds: [],
   });
+  const [result, setResult] = useState<OptimizationResult | null>(null);
+  const [hasAttemptedRun, setHasAttemptedRun] = useState(false);
 
   const droppableOptions = useMemo(
     () =>
@@ -50,6 +56,16 @@ const Optimization = () => {
       ...prev,
       droppablePlayerIds: selectedIds,
     }));
+  };
+
+  const getPlayerAverage = (playerId: number) => {
+    const player = dummyFantasyData.roster.find((entry) => entry.id === playerId);
+    if (!player) {
+      return 0;
+    }
+    return settings.scoringMethod === "ROLLING_30"
+      ? player.rolling30DayAvgPoints
+      : player.seasonAvgPoints;
   };
 
   const isRunDisabled = Boolean(dateError);
@@ -92,7 +108,9 @@ const Optimization = () => {
               minDate={settings.startDate ? new Date(settings.startDate) : undefined}
             />
           </div>
-          {dateError && <p className="optimization-error">{dateError}</p>}
+          {hasAttemptedRun && dateError && (
+            <p className="optimization-error">{dateError}</p>
+          )}
         </div>
 
         <div className="optimization-card">
@@ -151,13 +169,52 @@ const Optimization = () => {
           type="button"
           disabled={isRunDisabled}
           onClick={() => {
+            setHasAttemptedRun(true);
+            if (dateError) {
+              return;
+            }
+            const optimizationResult = optimizeWeeklyLineup({
+              roster: dummyFantasyData.roster,
+              startDate: settings.startDate,
+              endDate: settings.endDate,
+              scoringMethod: settings.scoringMethod,
+            });
+            setResult(optimizationResult);
             console.log("Optimization settings", settings);
+            console.log("Optimization result", optimizationResult);
           }}
           className="optimization-button"
         >
           Run Optimization
         </button>
       </div>
+
+      {result && (
+        <div className="optimization-results">
+          <div className="optimization-summary">
+            <h2>Optimization Results</h2>
+            <p>Total projected points: {result.totalPoints.toFixed(1)}</p>
+          </div>
+          <div className="optimization-results-list">
+            {result.dailyLineups.map((day) => (
+              <div key={day.date} className="optimization-day-card">
+                <div className="optimization-day-header">
+                  <span>{day.date}</span>
+                  <span>{day.totalPoints.toFixed(1)} pts</span>
+                </div>
+                <ul>
+                  {day.starters.map((player) => (
+                    <li key={player.id}>
+                      {player.name} ({player.positions.join(", ")}) · Avg{" "}
+                      {getPlayerAverage(player.id).toFixed(1)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 };
